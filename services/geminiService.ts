@@ -9,10 +9,7 @@ import { getSystemInstruction, FEW_SHOT_EXAMPLES } from '../constants';
 // The key is needed by the library, but we must prevent it from being injected into the browser runtime
 const netlifyInjectedKey = process.env.REACT_APP_GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || process.env.API_KEY;
 
-// We MUST check if the key is available before initializing the client
-if (!netlifyInjectedKey) {
-    throw new Error("An API Key must be set for the AI client to initialize.");
-}
+
 
 const ai = new GoogleGenAI({ apiKey: netlifyInjectedKey });
 const RANDOM_MOODS = [
