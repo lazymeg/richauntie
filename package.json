@@ -1,5 +1,6 @@
 {
-  "name": "阿姨的躺平人生學",
+  "name": "richauntie-app",
+  "homepage": ".",
   "private": true,
   "version": "0.0.0",
   "type": "module",
