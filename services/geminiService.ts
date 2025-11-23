@@ -1,5 +1,5 @@
 // Initialize the API client
-const ai = new GoogleGenAI({ apiKey: process.env.VITE_GEMINI_API_KEY });
+const ai = new GoogleGenAI({ apiKey: process.env.REACT_APP_GEMINI_API_KEY });
 import { GoogleGenAI } from "@google/genai";
 import { getSystemInstruction, FEW_SHOT_EXAMPLES } from '../constants';
 
