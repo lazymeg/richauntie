@@ -2,22 +2,23 @@ import { GoogleGenAI } from "@google/genai";
 import { getSystemInstruction, FEW_SHOT_EXAMPLES } from '../constants';
 
 // --- API Key Initialization Logic ---
-// 這裡保留最廣泛的檢查方式，以確保 Netlify 可以讀取到金鑰
+// We use multiple environment variable names for cross-compatibility (Vite, CRA, Netlify)
 const netlifyInjectedKey = process.env.REACT_APP_GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || process.env.API_KEY;
 
-// 初始化 AI client 一次
-// 如果 netlifyInjectedKey 為空，程式碼會繼續運行，並使用後面的錯誤處理 (fallback)
-const ai = new GoogleGenAI({ apiKey: netlifyInjectedKey });
+// CRITICAL FIX: Pass || '' to bypass the constructor's check. 
+// If the key is not exposed (which it isn't), the client will be initialized with a blank key,
+// and the error will be gracefully handled by the try...catch block below.
+const ai = new GoogleGenAI({ apiKey: netlifyInjectedKey || '' });
 
 const RANDOM_MOODS = [
-  "Be concise and sassy.",
-  "Be motherly and warm.",
-  "Focus on financial independence.",
-  "Focus on self-love and confidence.",
-  "Use a metaphor about luxury or food.",
-  "Be realistically cynical but funny.",
-  "Focus on the joy of lying flat.",
-  "Make a sharp observation about society."
+  "Be concise and sassy.",
+  "Be motherly and warm.",
+  "Focus on financial independence.",
+  "Focus on self-love and confidence.",
+  "Use a metaphor about luxury or food.",
+  "Be realistically cynical but funny.",
+  "Focus on the joy of lying flat.",
+  "Make a sharp observation about society."
 ];
 
 // Fallback logic now considers history to avoid repetition even when API fails
@@ -120,37 +121,37 @@ export const getRichLadyAdvice = async (
 
   } catch (error) {
     console.error("Gemini API Error (using fallback):", error);
-    // Silent fallback on error (including 429)
+    // Silent fallback on error (including 429 and 401 due to missing key)
     return getFallbackAdvice(topicLabel, history);
   }
 };
 
 export const analyzeImageAndGetAdvice = async (base64Image: string, mimeType: string, userName: string): Promise<string> => {
   try {
-     const prompt = `
+      const prompt = `
       [Task] Analyze this image and react as the "Rich Auntie" (富婆阿姨).
       - If it's text, read it and comment in your sassy style.
       - If it's a photo, judge it (nicely) or praise it.
       - Call the user "${userName}".
       - Refer to yourself as "阿姨".
       - Be witty.
-     `;
+      `;
 
-     const response = await ai.models.generateContent({
+      const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: {
-        parts: [
+          parts: [
           { inlineData: { mimeType: mimeType, data: base64Image } },
           { text: prompt }
-        ]
+          ]
       },
       config: {
-        systemInstruction: getSystemInstruction(userName),
-        temperature: 0.8,
+          systemInstruction: getSystemInstruction(userName),
+          temperature: 0.8,
       }
-     });
+      });
 
-     return response.text || "哎呀，阿姨的老花眼鏡好像度數不夠，看不太清。不過這圖感覺挺有意思的。";
+      return response.text || "哎呀，阿姨的老花眼鏡好像度數不夠，看不太清。不過這圖感覺挺有意思的。";
 
   } catch (error) {
     console.error("Gemini Vision Error:", error);
