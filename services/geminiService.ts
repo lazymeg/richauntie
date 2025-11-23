@@ -1,25 +1,23 @@
-// Initialize the API client
 import { GoogleGenAI } from "@google/genai";
 import { getSystemInstruction, FEW_SHOT_EXAMPLES } from '../constants';
 
-// Initialize the API client
-// We expect this key to be injected at build time (e.g., VITE_...)
-// Since AI Studio uses process.env, we use a different name for Netlify compatibility.
-// The key is needed by the library, but we must prevent it from being injected into the browser runtime
+// --- API Key Initialization Logic ---
+// 這裡保留最廣泛的檢查方式，以確保 Netlify 可以讀取到金鑰
 const netlifyInjectedKey = process.env.REACT_APP_GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || process.env.API_KEY;
 
-
-
+// 初始化 AI client 一次
+// 如果 netlifyInjectedKey 為空，程式碼會繼續運行，並使用後面的錯誤處理 (fallback)
 const ai = new GoogleGenAI({ apiKey: netlifyInjectedKey });
+
 const RANDOM_MOODS = [
-  "Be concise and sassy.",
-  "Be motherly and warm.",
-  "Focus on financial independence.",
-  "Focus on self-love and confidence.",
-  "Use a metaphor about luxury or food.",
-  "Be realistically cynical but funny.",
-  "Focus on the joy of lying flat.",
-  "Make a sharp observation about society."
+  "Be concise and sassy.",
+  "Be motherly and warm.",
+  "Focus on financial independence.",
+  "Focus on self-love and confidence.",
+  "Use a metaphor about luxury or food.",
+  "Be realistically cynical but funny.",
+  "Focus on the joy of lying flat.",
+  "Make a sharp observation about society."
 ];
 
 // Fallback logic now considers history to avoid repetition even when API fails
