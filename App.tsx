@@ -1,204 +1,180 @@
 
-import React, { useState, useRef, useEffect } from 'react';
-import { AppState, TOPICS, Topic, IMAGE_TOPIC_ID } from './types';
-import RichLadyView from './components/RichLadyView';
+import React, { useState, useEffect } from 'react';
+import { AppState, TOPICS, Topic } from './types';
 import Background from './components/Background';
 import RitualScreen from './components/RitualScreen';
 import WelcomeScreen from './components/WelcomeScreen';
-import { GREETINGS, RICH_LADY_IMAGES, APP_NAME, DEFAULT_NICKNAME } from './constants';
+import { APP_NAME, DEFAULT_NICKNAME, MONTHLY_THEMES } from './constants';
+import { getRichLadyAdvice } from './services/geminiService';
+
+const LOADING_TEXTS = [
+  "阿姨正在為你準備...",
+  "正在翻閱智慧存摺...",
+  "讓阿姨好好看看...",
+  "正在調製心靈雞湯...",
+  "阿姨正在戴老花眼鏡...",
+  "等一下，阿姨喝口茶...",
+];
 
 const App: React.FC = () => {
-  // Start at WELCOME screen
   const [currentView, setCurrentView] = useState<AppState>(AppState.WELCOME);
-  const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null);
-  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [greeting, setGreeting] = useState<string>('');
+  const [bubbleText, setBubbleText] = useState<string>('');
   const [userName, setUserName] = useState<string>(DEFAULT_NICKNAME);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [history, setHistory] = useState<string[]>([]);
   
-  // Shuffle images once on mount to ensure each topic gets a unique random auntie
-  const [shuffledImages] = useState<string[]>(() => {
-    return [...RICH_LADY_IMAGES].sort(() => 0.5 - Math.random());
+  const [currentTheme] = useState(() => {
+    const currentMonth = new Date().getMonth() + 1;
+    const theme = MONTHLY_THEMES.find(t => t.month === currentMonth);
+    return theme || MONTHLY_THEMES[0];
   });
 
-  // Randomize greeting when entering selection view
   useEffect(() => {
     if (currentView === AppState.SELECTION) {
-      const randomGreeting = GREETINGS[Math.floor(Math.random() * GREETINGS.length)];
-      setGreeting(randomGreeting.replace(/{{name}}/g, userName));
+      const personalGreeting = currentTheme.greeting.replace('小寶', userName);
+      setGreeting(personalGreeting);
+      if (!bubbleText) {
+        setBubbleText(personalGreeting);
+      }
     }
-  }, [currentView, userName]);
+  }, [currentView, userName, currentTheme, bubbleText]);
 
   const handleNameConfirm = (name: string) => {
     setUserName(name);
-    // Transition to Ritual (Landing) after name input
     setCurrentView(AppState.LANDING);
   };
 
   const handleRitualComplete = () => {
-    // Transition to Selection after ritual
     setCurrentView(AppState.SELECTION);
   };
 
-  const handleTopicSelect = (topic: Topic) => {
-    setSelectedTopic(topic);
-    setUploadedImage(null);
-    setCurrentView(AppState.ADVICE);
-  };
+  const handleTopicSelect = async (topic: Topic) => {
+    setIsLoading(true);
+    const randomLoading = LOADING_TEXTS[Math.floor(Math.random() * LOADING_TEXTS.length)];
+    setBubbleText(randomLoading);
 
-  const handleBack = () => {
-    setCurrentView(AppState.SELECTION);
-    setSelectedTopic(null);
-    setUploadedImage(null);
-  };
-
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64String = reader.result as string;
-        setUploadedImage(base64String);
-        
-        setSelectedTopic({
-          id: IMAGE_TOPIC_ID,
-          label: '阿姨讀圖',
-          icon: '📷'
-        });
-        setCurrentView(AppState.ADVICE);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const triggerFileUpload = () => {
-    fileInputRef.current?.click();
-  };
-
-  // Determine which image to show based on logic
-  const getRichLadyImage = (): string => {
-    // Use the first shuffled image for Welcome/Landing to be consistent
-    if (currentView === AppState.WELCOME || currentView === AppState.LANDING) {
-      return shuffledImages[0];
-    }
-    if (uploadedImage) {
-      return shuffledImages[Math.floor(Math.random() * shuffledImages.length)];
-    }
-    if (selectedTopic) {
-      const topicIndex = TOPICS.findIndex(t => t.id === selectedTopic.id);
-      if (topicIndex >= 0) {
-        // Map topic index to shuffled images index (modulo to prevent out of bounds)
-        return shuffledImages[topicIndex % shuffledImages.length];
-      }
-    }
-    return shuffledImages[0];
+    // Fetch advice
+    const text = await getRichLadyAdvice(topic.label, userName, false, history);
+    
+    setBubbleText(text);
+    setHistory(prev => [...prev, text]);
+    setIsLoading(false);
   };
 
   return (
-    <div className="relative min-h-screen w-full flex flex-col font-sans">
+    <div className="relative h-[100dvh] w-full flex flex-col font-sans overflow-hidden bg-white">
       <Background />
 
-      {currentView === AppState.WELCOME && (
-        <WelcomeScreen 
-          imageSrc={getRichLadyImage()} 
-          onConfirm={handleNameConfirm} 
-        />
-      )}
+      <div className="flex-1 w-full h-full overflow-hidden relative z-10 flex flex-col">
+        {currentView === AppState.WELCOME && (
+          <WelcomeScreen 
+            imageSrc={currentTheme.image} 
+            onConfirm={handleNameConfirm} 
+          />
+        )}
 
-      {currentView === AppState.LANDING && (
-        <RitualScreen 
-          imageSrc={getRichLadyImage()}
-          onComplete={handleRitualComplete} 
-        />
-      )}
+        {currentView === AppState.LANDING && (
+          <RitualScreen 
+            imageSrc={currentTheme.image}
+            onComplete={handleRitualComplete} 
+          />
+        )}
 
-      {currentView === AppState.SELECTION && (
-        <main className="flex-1 flex flex-col items-center justify-center p-6 animate-fade-in max-w-4xl mx-auto w-full z-10 pb-20">
-          <header className="mb-10 text-center">
-            <h1 className="text-4xl md:text-5xl font-black text-illustration-navy mb-4 tracking-wider">
-              {APP_NAME}
-            </h1>
-            <div className="h-1 w-24 bg-illustration-navy mx-auto rounded-full opacity-20 mb-4"></div>
-            <p className="text-illustration-navyLight text-lg opacity-80 animate-slide-up">
-              {greeting}
-            </p>
-          </header>
-
-          <div className="w-full max-w-lg">
+        {currentView === AppState.SELECTION && (
+          <div className="flex flex-col h-full w-full relative">
             
-            <div className="grid grid-cols-2 gap-4 mb-8">
-              {TOPICS.map((topic) => (
-                <button
-                  key={topic.id}
-                  onClick={() => handleTopicSelect(topic)}
-                  className="group relative overflow-hidden bg-white hover:bg-illustration-cream border-2 border-illustration-navy/10 hover:border-illustration-salmon transition-all duration-300 rounded-2xl p-4 shadow-sm hover:shadow-lg hover:-translate-y-1 text-left flex flex-col items-center justify-center gap-3 aspect-[4/3]"
-                >
-                  <div className="text-4xl group-hover:scale-125 transition-transform duration-300 filter drop-shadow-sm">
-                    {topic.icon}
-                  </div>
-                  <span className="font-bold text-illustration-navy text-lg tracking-wide">
-                    {topic.label}
-                  </span>
-                </button>
-              ))}
+            {/* TOP SECTION: Image & Bubble */}
+            {/* Height set to 80% */}
+            <div className="relative w-full h-[80%] shrink-0 overflow-hidden">
+               <img 
+                  src={currentTheme.image}
+                  alt="Rich Lady Theme" 
+                  className="w-full h-full object-cover select-none pointer-events-none"
+               />
+               
+               {/* GRADIENT REMOVED per user request */}
+
+               {/* Greeting Bubble - Centered */}
+               <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-40 p-6 pb-16">
+                 <div className={`
+                    bg-white/95 backdrop-blur-md px-6 py-8 rounded-3xl shadow-2xl border border-white/60 
+                    w-full max-w-xs md:max-w-sm relative transition-all duration-300 ease-out pointer-events-auto
+                    flex flex-col
+                    ${isLoading ? 'animate-pulse' : ''}
+                 `}>
+                    
+                    {/* Decorative quote marks */}
+                    <span className="absolute -top-4 left-4 text-5xl text-illustration-salmon/20 font-serif leading-none select-none">“</span>
+
+                    {/* Text Container */}
+                    {/* Fixed clipping issue: Removed 'flex items-center' which causes issues with scrolling overflow. 
+                        Used 'my-auto' on the p tag instead for centering short text. */}
+                    <div className="w-full min-h-[5rem] max-h-[50vh] overflow-y-auto no-scrollbar flex flex-col">
+                        <p className="text-illustration-navy text-base md:text-lg font-bold leading-relaxed text-center animate-fade-in whitespace-pre-wrap w-full my-auto px-1 py-1">
+                          {bubbleText}
+                        </p>
+                    </div>
+                    
+                    <span className="absolute -bottom-6 right-4 text-5xl text-illustration-salmon/20 font-serif leading-none rotate-180 select-none">“</span>
+
+                    {/* Tag label */}
+                    <div className="absolute -top-3 right-6 bg-illustration-salmon text-white text-[10px] px-2 py-0.5 rounded-full font-bold shadow-sm tracking-wider">
+                      {APP_NAME}
+                    </div>
+                 </div>
+               </div>
             </div>
 
-             {/* Image Upload Button */}
-             <div className="relative group mb-12">
-                <input 
-                  type="file" 
-                  accept="image/*" 
-                  className="hidden" 
-                  ref={fileInputRef}
-                  onChange={handleImageUpload}
-                />
-                <button 
-                  onClick={triggerFileUpload}
-                  className="w-full bg-illustration-navy hover:bg-illustration-navyLight text-white font-bold py-4 rounded-2xl shadow-lg transform transition active:scale-[0.98] flex items-center justify-center gap-3 border-b-4 border-gray-800"
-                >
-                  <span className="text-2xl">📷</span>
-                  <span className="tracking-widest">拿圖給阿姨看</span>
-                </button>
-             </div>
-            
-            <div className="text-center flex flex-col gap-4">
-               {/* Author Links */}
-               <div className="flex items-center justify-center gap-2">
-                    <a 
-                        href="https://lazymeg.com/m/" 
-                        target="_blank" 
-                        rel="noopener noreferrer" 
-                        className="text-sm text-illustration-sage hover:text-illustration-salmon transition-colors font-bold tracking-wide border-b border-transparent hover:border-illustration-salmon"
-                    >
-                        Designed by meg.dai
-                    </a>
-                    <span className="text-illustration-sage/50">|</span>
-                    <a href="https://www.instagram.com/lazy2meg/" target="_blank" rel="noopener noreferrer" className="text-illustration-sage hover:text-illustration-salmon transition-colors">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
-                            <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
-                            <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
-                        </svg>
-                    </a>
-               </div>
+            {/* BOTTOM SECTION: Control Sheet - DARK NAVY */}
+            <div className="flex-1 bg-illustration-darkNavy relative rounded-t-[2rem] shadow-[0_-8px_30px_rgba(0,0,0,0.2)] -mt-6 z-50 flex flex-col px-4 pt-3 pb-4">
+              
+              {/* Drag Handle - Light */}
+              <div className="w-8 h-1 bg-white/20 rounded-full mx-auto mb-2 shrink-0" />
+              
+              <h2 className="text-center text-white font-bold text-base mb-3 tracking-wider shrink-0">
+                想知道阿姨怎麼面對？
+              </h2>
 
-              <span className="text-sm text-illustration-navy/50 italic">
-                — 來自富婆阿姨的情緒價值 —
-              </span>
+              {/* Topics Grid - 3+2 Layout */}
+              <div className="flex flex-wrap justify-center gap-2 w-full max-w-sm mx-auto content-start overflow-y-auto no-scrollbar pb-2">
+                {TOPICS.map((topic, index) => {
+                  const isFirstRow = index < 3;
+                  return (
+                    <button
+                      key={topic.id}
+                      onClick={() => handleTopicSelect(topic)}
+                      disabled={isLoading}
+                      style={{ 
+                        backgroundColor: topic.color,
+                        width: isFirstRow ? 'calc(33% - 0.4rem)' : 'calc(49% - 0.4rem)'
+                      }}
+                      className={`
+                        group relative overflow-hidden transition-all duration-200 
+                        rounded-xl py-2 px-1 shadow-md active:scale-95 active:shadow-inner
+                        flex items-center justify-center min-h-[44px]
+                        ${isLoading ? 'opacity-70 cursor-wait' : 'hover:brightness-110'}
+                      `}
+                    >
+                      <span className="font-bold text-illustration-navy/90 text-sm tracking-widest whitespace-nowrap">
+                        {topic.label}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Footer Links - Light */}
+              <div className="mt-auto pt-2 text-center flex items-center justify-center gap-2 opacity-50 shrink-0">
+                 <a href="https://richauntee.link/" target="_blank" className="text-[10px] font-bold text-white hover:text-illustration-salmon transition-colors">Be RICH!</a>
+                 <span className="text-[10px] text-white">|</span>
+                 <a href="https://lazymeg.com/m/" target="_blank" className="text-[10px] font-bold text-white hover:text-illustration-salmon transition-colors">Meg.Dai</a>
+              </div>
+
             </div>
           </div>
-        </main>
-      )}
-
-      {currentView === AppState.ADVICE && selectedTopic && (
-        <RichLadyView 
-          topicLabel={selectedTopic.label} 
-          imageSrc={getRichLadyImage()}
-          onBack={handleBack}
-          uploadedImage={uploadedImage}
-          userName={userName}
-        />
-      )}
+        )}
+      </div>
     </div>
   );
 };
